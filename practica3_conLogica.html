@@ -1,0 +1,830 @@
+<html lang="es">
+  <head>
+    <title>Damas Chinas</title>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <style>
+      #mensaje {
+        margin-top: 10px;
+        font-family: Arial, sans-serif;
+        font-size: 16px;
+        color: #333;
+      }
+      #reglas {
+        margin-top: 20px;
+        padding: 15px;
+        background-color: #f5f5f5;
+        border-radius: 5px;
+        font-family: Arial, sans-serif;
+      }
+      #reglas h3 {
+        margin-top: 0;
+      }
+      #reglas ul {
+        padding-left: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Mendoza Calle César Alejandro creo que soy el número 5</h2>
+    <canvas
+      id="webglcanvas"
+      style="border: none"
+      width="500"
+      height="500"
+    ></canvas>
+    <div id="mensaje">
+      Selecciona una ficha y luego haz clic en un círculo vacío para moverla
+    </div>
+    <div id="reglas">
+      <h3>Reglas de movimiento en Damas Chinas</h3>
+      <ul>
+        <li><strong>Movimiento simple:</strong> Mueve una ficha a una casilla adyacente vacía en cualquiera de las seis direcciones posibles.</li>
+        <li><strong>Movimiento de salto:</strong> Puedes saltar sobre cualquier ficha adyacente (propia o ajena), siempre que la casilla después esté vacía.</li>
+        <li><strong>Saltos múltiples:</strong> Puedes encadenar varios saltos en un mismo turno si son posibles.</li>
+        <li><strong>Dirección de movimiento:</strong> Puedes mover en cualquier dirección, no solo hacia la base objetivo.</li>
+        <li><strong>Base objetivo:</strong> Solo puedes ingresar a tu base objetivo y las fichas no pueden salir una vez dentro.</li>
+      </ul>
+    </div>
+    <noscript>
+      <p><b>Lo siento, pero ésta página requiere JavaScript.</b></p>
+    </noscript>
+
+    <!-- Shaders -->
+    <script id="vs" type="vertex">
+      #version 300 es
+      uniform mat4 uMatrizProyeccion;
+      layout(location = 0) in vec2 aVertices;
+      void main() {
+          gl_Position = uMatrizProyeccion * vec4(aVertices, 0.0, 1.0);
+      }
+    </script>
+
+    <script id="fs" type="fragment">
+      #version 300 es
+      precision mediump float;
+      uniform vec4 uColor;
+      out vec4 color;
+      void main() {
+          color = uColor;
+      }
+    </script>
+
+    <script>
+      // Configuración inicial
+      var MatrizProyeccion = new Array(16);
+      var uMatrizProyeccion, uColor;
+      var gl, canvas;
+      var circuloGrandeVAO, estrellaVAO;
+      var circulosVAO = [];
+      var triangulosVAO = [];
+
+      // Variables para animación
+      var enAnimacion = false;
+      var animacionInicio = 0;
+      var duracionAnimacion = 500; // 0.5 segundos
+      var fichaAnimada = null;
+      var posicionInicialAnim = {x: 0, y: 0};
+      var posicionFinalAnim = {x: 0, y: 0};
+
+      // Variables del juego
+      var turnoActual = 0; // 0: rojo, 1: celeste, 2: azul, 3: violeta, 4: negro, 5: verde
+      var coloresJugadores = [
+        [1.0, 0.0, 0.0, 1.0],   // Rojo
+        [0.0, 1.0, 1.0, 1.0],   // Celeste
+        [0.0, 0.0, 1.0, 1.0],   // Azul
+        [1.0, 0.0, 1.0, 1.0],   // Violeta
+        [0.0, 0.0, 0.0, 1.0],   // Negro
+        [0.0, 1.0, 0.0, 1.0]    // Verde
+      ];
+      var basesObjetivo = [
+        [15, 16, 43, 55, 104, 105, 106, 118, 119, 120], // Rojo -> Violeta
+        [47, 48, 49, 50, 51, 52, 97, 101, 102, 103],    // Celeste -> Azul
+        [59, 60, 61, 62, 63, 64, 111, 115, 116, 117],   // Azul -> Negro
+        [35, 36, 37, 38, 39, 40, 83, 87, 88, 89],       // Violeta -> Verde
+        [23, 24, 25, 26, 27, 28, 73, 74, 75, 69],       // Negro -> Celeste
+        [11, 12, 19, 31, 76, 77, 78, 90, 91, 92]        // Verde -> Rojo
+      ];
+
+      // Datos de los círculos (posiciones base)
+      var configCirculos = [
+        // Fila central (eje X)
+        { x: 0, y: 0, ocupado: false },//0
+        { x: 0.2625, y: 0, ocupado: false },//1
+        { x: 0.525, y: 0, ocupado: false },//2
+        { x: 0.7875, y: 0, ocupado: false },//3
+        { x: 1.05, y: 0, ocupado: false },//4
+        { x: -0.2625, y: 0, ocupado: false },//5
+        { x: -0.525, y: 0, ocupado: false },//6
+        { x: -0.7875, y: 0, ocupado: false },//7
+        { x: -1.05, y: 0, ocupado: false },//8
+        { x: 0, y: 0.45, ocupado: false },//9
+        { x: 0, y: 0.9, ocupado: false },//10
+        { x: 0, y: 1.35, ocupado: false },//11
+        { x: 0, y: 1.8, ocupado: false },//12
+        { x: 0, y: -0.45, ocupado: false },//13
+        { x: 0, y: -0.9, ocupado: false },//14
+        { x: 0, y: -1.35, ocupado: false },//15
+        { x: 0, y: -1.8, ocupado: false },//16
+
+        //1er cuadrante
+        { x: 0.2625, y: 0.45, ocupado: false },//17
+        { x: 0.2625, y: 0.9, ocupado: false },//18
+        { x: 0.2625, y: 1.35, ocupado: false },//19
+        { x: 0.525, y: 0.45, ocupado: false },//20
+        { x: 0.525, y: 0.9, ocupado: false },//21
+        { x: 0.7875, y: 0.45, ocupado: false },//22
+        { x: 0.7875, y: 0.9, ocupado: false },//23
+        { x: 1.05, y: 0.45, ocupado: false },//24
+        { x: 1.05, y: 0.9, ocupado: false },//25
+        { x: 1.3125, y: 0.45, ocupado: false },//26
+        { x: 1.3125, y: 0.9, ocupado: false },//27
+        { x: 1.575, y: 0.9, ocupado: false },//28
+        //2do cuadrante
+        { x: -0.2625, y: 0.45, ocupado: false },//29
+        { x: -0.2625, y: 0.9, ocupado: false },//30
+        { x: -0.2625, y: 1.35, ocupado: false },//31
+        { x: -0.525, y: 0.45, ocupado: false },//32
+        { x: -0.525, y: 0.9, ocupado: false },//33
+        { x: -0.7875, y: 0.45, ocupado: false },//34
+        { x: -0.7875, y: 0.9, ocupado: false },//35
+        { x: -1.05, y: 0.45, ocupado: false },//36
+        { x: -1.05, y: 0.9, ocupado: false },//37
+        { x: -1.3125, y: 0.45, ocupado: false },//38
+        { x: -1.3125, y: 0.9, ocupado: false },//39
+        { x: -1.575, y: 0.9, ocupado: false },//40
+        //3er cuadrante
+        { x: -0.2625, y: -0.45, ocupado: false },//41
+        { x: -0.2625, y: -0.9, ocupado: false },//42
+        { x: -0.2625, y: -1.35, ocupado: false },//43
+        { x: -0.525, y: -0.45, ocupado: false },//44
+        { x: -0.525, y: -0.9, ocupado: false },//45
+        { x: -0.7875, y: -0.45, ocupado: false },//46
+        { x: -0.7875, y: -0.9, ocupado: false },//47
+        { x: -1.05, y: -0.45, ocupado: false },//48
+        { x: -1.05, y: -0.9, ocupado: false },//49
+        { x: -1.3125, y: -0.45, ocupado: false },//50
+        { x: -1.3125, y: -0.9, ocupado: false },//51
+        { x: -1.575, y: -0.9, ocupado: false },//52
+        //4to cuadrante
+        { x: 0.2625, y: -0.45, ocupado: false },//53
+        { x: 0.2625, y: -0.9, ocupado: false },//54
+        { x: 0.2625, y: -1.35, ocupado: false },//55
+        { x: 0.525, y: -0.45, ocupado: false },//56
+        { x: 0.525, y: -0.9, ocupado: false },//57
+        { x: 0.7875, y: -0.45, ocupado: false },//58
+        { x: 0.7875, y: -0.9, ocupado: false },//59
+        { x: 1.05, y: -0.45, ocupado: false },//60
+        { x: 1.05, y: -0.9, ocupado: false },//61
+        { x: 1.3125, y: -0.45, ocupado: false },//62
+        { x: 1.3125, y: -0.9, ocupado: false },//63
+        { x: 1.575, y: -0.9, ocupado: false },//64
+        //Pares 1er cuadrante
+        { x: 0.13125, y: 0.225, ocupado: false },//65
+        { x: 0.39375, y: 0.225, ocupado: false },//66
+        { x: 0.65625, y: 0.225, ocupado: false },//67
+        { x: 0.91875, y: 0.225, ocupado: false },//68
+        { x: 1.18125, y: 0.225, ocupado: false },//69
+        { x: 0.13125, y: 0.675, ocupado: false },//70
+        { x: 0.39375, y: 0.675, ocupado: false },//71
+        { x: 0.65625, y: 0.675, ocupado: false },//72
+        { x: 0.91875, y: 0.675, ocupado: false },//73
+        { x: 1.18125, y: 0.675, ocupado: false },//74
+        { x: 1.44375, y: 0.675, ocupado: false },//75
+        { x: 0.13125, y: 1.125, ocupado: false },//76
+        { x: 0.39375, y: 1.125, ocupado: false },//77
+        { x: 0.13125, y: 1.575, ocupado: false },//78
+        //Pares 2do cuadrante
+        { x: -0.13125, y: 0.225, ocupado: false },//79
+        { x: -0.39375, y: 0.225, ocupado: false },//80
+        { x: -0.65625, y: 0.225, ocupado: false },//81
+        { x: -0.91875, y: 0.225, ocupado: false },//82
+        { x: -1.18125, y: 0.225, ocupado: false },//83
+        { x: -0.13125, y: 0.675, ocupado: false },//84
+        { x: -0.39375, y: 0.675, ocupado: false },//85
+        { x: -0.65625, y: 0.675, ocupado: false },//86
+        { x: -0.91875, y: 0.675, ocupado: false },//87
+        { x: -1.18125, y: 0.675, ocupado: false },//88
+        { x: -1.44375, y: 0.675, ocupado: false },//89
+        { x: -0.13125, y: 1.125, ocupado: false },//90
+        { x: -0.39375, y: 1.125, ocupado: false },//91
+        { x: -0.13125, y: 1.575, ocupado: false },//92
+        //Pares 3er cuadrante
+        { x: -0.13125, y: -0.225, ocupado: false },//93
+        { x: -0.39375, y: -0.225, ocupado: false },//94
+        { x: -0.65625, y: -0.225, ocupado: false },//95
+        { x: -0.91875, y: -0.225, ocupado: false },//96
+        { x: -1.18125, y: -0.225, ocupado: false },//97
+        { x: -0.13125, y: -0.675, ocupado: false },//98
+        { x: -0.39375, y: -0.675, ocupado: false },//99
+        { x: -0.65625, y: -0.675, ocupado: false },//100
+        { x: -0.91875, y: -0.675, ocupado: false },//101
+        { x: -1.18125, y: -0.675, ocupado: false },//102
+        { x: -1.44375, y: -0.675, ocupado: false },//103
+        { x: -0.13125, y: -1.125, ocupado: false },//104
+        { x: -0.39375, y: -1.125, ocupado: false },//105
+        { x: -0.13125, y: -1.575, ocupado: false },//106
+        //Pares 4to cuadrante
+        { x: 0.13125, y: -0.225, ocupado: false },//107
+        { x: 0.39375, y: -0.225, ocupado: false },//108
+        { x: 0.65625, y: -0.225, ocupado: false },//109
+        { x: 0.91875, y: -0.225, ocupado: false },//110
+        { x: 1.18125, y: -0.225, ocupado: false },//111
+        { x: 0.13125, y: -0.675, ocupado: false },//112
+        { x: 0.39375, y: -0.675, ocupado: false },//113
+        { x: 0.65625, y: -0.675, ocupado: false },//114
+        { x: 0.91875, y: -0.675, ocupado: false },//115
+        { x: 1.18125, y: -0.675, ocupado: false },//116
+        { x: 1.44375, y: -0.675, ocupado: false },//117
+        { x: 0.13125, y: -1.125, ocupado: false },//118
+        { x: 0.39375, y: -1.125, ocupado: false },//119
+        { x: 0.13125, y: -1.575, ocupado: false },//120
+      ];
+
+      // Datos de los triángulos (fichas)
+      var fichas = [
+        //jugador rojo
+        { posicion: 11, color: [1.0, 0.0, 0.0, 1.0], jugador: 0 },
+        { posicion: 12, color: [1.0, 0.0, 0.0, 1.0], jugador: 0 },
+        { posicion: 19, color: [1.0, 0.0, 0.0, 1.0], jugador: 0 },
+        { posicion: 31, color: [1.0, 0.0, 0.0, 1.0], jugador: 0 },
+        { posicion: 76, color: [1.0, 0.0, 0.0, 1.0], jugador: 0 },
+        { posicion: 77, color: [1.0, 0.0, 0.0, 1.0], jugador: 0 },
+        { posicion: 78, color: [1.0, 0.0, 0.0, 1.0], jugador: 0 },
+        { posicion: 90, color: [1.0, 0.0, 0.0, 1.0], jugador: 0 },
+        { posicion: 91, color: [1.0, 0.0, 0.0, 1.0], jugador: 0 },
+        { posicion: 92, color: [1.0, 0.0, 0.0, 1.0], jugador: 0 },
+        //jugador celeste
+        { posicion: 23, color: [0.0, 1.0, 1.0, 1.0], jugador: 1 }, 
+        { posicion: 24, color: [0.0, 1.0, 1.0, 1.0], jugador: 1 }, 
+        { posicion: 25, color: [0.0, 1.0, 1.0, 1.0], jugador: 1 }, 
+        { posicion: 26, color: [0.0, 1.0, 1.0, 1.0], jugador: 1 }, 
+        { posicion: 27, color: [0.0, 1.0, 1.0, 1.0], jugador: 1 }, 
+        { posicion: 28, color: [0.0, 1.0, 1.0, 1.0], jugador: 1 }, 
+        { posicion: 73, color: [0.0, 1.0, 1.0, 1.0], jugador: 1 }, 
+        { posicion: 74, color: [0.0, 1.0, 1.0, 1.0], jugador: 1 }, 
+        { posicion: 75, color: [0.0, 1.0, 1.0, 1.0], jugador: 1 }, 
+        { posicion: 69, color: [0.0, 1.0, 1.0, 1.0], jugador: 1 }, 
+        // jugador Azul
+        { posicion: 47, color: [0.0, 0.0, 1.0, 1.0], jugador: 2 }, 
+        { posicion: 48, color: [0.0, 0.0, 1.0, 1.0], jugador: 2 }, 
+        { posicion: 49, color: [0.0, 0.0, 1.0, 1.0], jugador: 2 }, 
+        { posicion: 50, color: [0.0, 0.0, 1.0, 1.0], jugador: 2 }, 
+        { posicion: 51, color: [0.0, 0.0, 1.0, 1.0], jugador: 2 }, 
+        { posicion: 52, color: [0.0, 0.0, 1.0, 1.0], jugador: 2 }, 
+        { posicion: 97, color: [0.0, 0.0, 1.0, 1.0], jugador: 2 }, 
+        { posicion: 101, color: [0.0, 0.0, 1.0, 1.0], jugador: 2 }, 
+        { posicion: 102, color: [0.0, 0.0, 1.0, 1.0], jugador: 2 }, 
+        { posicion: 103, color: [0.0, 0.0, 1.0, 1.0], jugador: 2 }, 
+        // Jugador Violeta
+        { posicion: 15, color: [1.0, 0.0, 1.0, 1.0], jugador: 3 }, 
+        { posicion: 16, color: [1.0, 0.0, 1.0, 1.0], jugador: 3 }, 
+        { posicion: 43, color: [1.0, 0.0, 1.0, 1.0], jugador: 3 }, 
+        { posicion: 55, color: [1.0, 0.0, 1.0, 1.0], jugador: 3 }, 
+        { posicion: 104, color: [1.0, 0.0, 1.0, 1.0], jugador: 3 }, 
+        { posicion: 105, color: [1.0, 0.0, 1.0, 1.0], jugador: 3 }, 
+        { posicion: 106, color: [1.0, 0.0, 1.0, 1.0], jugador: 3 }, 
+        { posicion: 118, color: [1.0, 0.0, 1.0, 1.0], jugador: 3 }, 
+        { posicion: 119, color: [1.0, 0.0, 1.0, 1.0], jugador: 3 }, 
+        { posicion: 120, color: [1.0, 0.0, 1.0, 1.0], jugador: 3 }, 
+        // Jugador Negro
+        { posicion: 59, color: [0.0, 0.0, 0.0, 1.0], jugador: 4 },
+        { posicion: 60, color: [0.0, 0.0, 0.0, 1.0], jugador: 4 },
+        { posicion: 61, color: [0.0, 0.0, 0.0, 1.0], jugador: 4 },
+        { posicion: 62, color: [0.0, 0.0, 0.0, 1.0], jugador: 4 },
+        { posicion: 63, color: [0.0, 0.0, 0.0, 1.0], jugador: 4 },
+        { posicion: 64, color: [0.0, 0.0, 0.0, 1.0], jugador: 4 },
+        { posicion: 111, color: [0.0, 0.0, 0.0, 1.0], jugador: 4 },
+        { posicion: 115, color: [0.0, 0.0, 0.0, 1.0], jugador: 4 },
+        { posicion: 116, color: [0.0, 0.0, 0.0, 1.0], jugador: 4 },
+        { posicion: 117, color: [0.0, 0.0, 0.0, 1.0], jugador: 4 },
+        // Jugador Verde
+        { posicion: 35, color: [0.0, 1.0, 0.0, 1.0], jugador: 5 },
+        { posicion: 36, color: [0.0, 1.0, 0.0, 1.0], jugador: 5 },
+        { posicion: 37, color: [0.0, 1.0, 0.0, 1.0], jugador: 5 },
+        { posicion: 38, color: [0.0, 1.0, 0.0, 1.0], jugador: 5 },
+        { posicion: 39, color: [0.0, 1.0, 0.0, 1.0], jugador: 5 },
+        { posicion: 40, color: [0.0, 1.0, 0.0, 1.0], jugador: 5 },
+        { posicion: 83, color: [0.0, 1.0, 0.0, 1.0], jugador: 5 },
+        { posicion: 87, color: [0.0, 1.0, 0.0, 1.0], jugador: 5 },
+        { posicion: 88, color: [0.0, 1.0, 0.0, 1.0], jugador: 5 },
+        { posicion: 89, color: [0.0, 1.0, 0.0, 1.0], jugador: 5 },
+      ];
+
+      // Variables para el movimiento
+      var fichaSeleccionada = null;
+      var mensajeDiv = document.getElementById("mensaje");
+      var posiblesMovimientos = [];
+      var saltosMultiples = [];
+      var movimientoActual = [];
+
+      /* Funciones de matriz y proyección */
+      function ortho(r, izq, der, abj, arr, cerca, lejos) {
+        r[0] = 2 / (der - izq); r[4] = 0; r[8] = 0; r[12] = -(der + izq) / (der - izq);
+        r[1] = 0; r[5] = 2 / (arr - abj); r[9] = 0; r[13] = -(arr + abj) / (arr - abj);
+        r[2] = 0; r[6] = 0; r[10] = -2 / (lejos - cerca); r[14] = -(lejos + cerca) / (lejos - cerca);
+        r[3] = 0; r[7] = 0; r[11] = 0; r[15] = 1;
+      }
+
+      /* Función de animación */
+      function animarMovimiento(timestamp) {
+        if (!animacionInicio) {
+          animacionInicio = timestamp;
+        }
+        
+        const progreso = (timestamp - animacionInicio) / duracionAnimacion;
+        const avance = Math.min(progreso, 1);
+        
+        // Interpolación cuadrática para efecto de suavizado
+        const avanceSuavizado = avance < 0.5 ? 2 * avance * avance : 1 - Math.pow(-2 * avance + 2, 2) / 2;
+        
+        // Calcular posición actual
+        const xActual = posicionInicialAnim.x + (posicionFinalAnim.x - posicionInicialAnim.x) * avanceSuavizado;
+        const yActual = posicionInicialAnim.y + (posicionFinalAnim.y - posicionInicialAnim.y) * avanceSuavizado;
+        
+        // Actualizar VAO de la ficha animada
+        gl.deleteVertexArray(triangulosVAO[fichaAnimada]);
+        triangulosVAO[fichaAnimada] = crearTriangulo(xActual, yActual);
+        
+        dibuja();
+        
+        if (avance < 1) {
+          requestAnimationFrame(animarMovimiento);
+        } else {
+          // Finalizar animación
+          enAnimacion = false;
+          animacionInicio = 0;
+          fichaAnimada = null;
+          
+          // Actualizar estado del juego
+          configCirculos[fichas[fichaSeleccionada].posicion].ocupado = false;
+          fichas[fichaSeleccionada].posicion = fichaSeleccionadaNuevaPos;
+          configCirculos[fichaSeleccionadaNuevaPos].ocupado = true;
+          
+          // Verificar si hay saltos múltiples disponibles
+          if (movimientoActual.length > 0 && movimientoActual[0].tipo === "salto") {
+            const ultimoSalto = movimientoActual[movimientoActual.length - 1];
+            const nuevosSaltos = encontrarSaltos(fichaSeleccionadaNuevaPos, fichas[fichaSeleccionada].jugador);
+            
+            if (nuevosSaltos.length > 0) {
+              saltosMultiples = nuevosSaltos;
+              mensajeDiv.textContent = "Puedes continuar con saltos múltiples. Haz clic en un destino válido.";
+              return;
+            }
+          }
+          
+          // Finalizar turno si no hay más saltos
+          finalizarTurno();
+        }
+      }
+
+      /* Dibuja todos los elementos */
+      function dibuja() {
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        // Dibujar el círculo grande
+        gl.bindVertexArray(circuloGrandeVAO);
+        gl.uniform4f(uColor, 166 / 255, 123 / 255, 91 / 255, 1);
+        gl.drawArrays(gl.TRIANGLE_FAN, 0, 360);
+
+        // Dibujar la estrella
+        gl.bindVertexArray(estrellaVAO);
+        gl.uniform4f(uColor, 236 / 255, 177 / 255, 118 / 255, 1);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 12);
+
+        // Dibujar círculos pequeños
+        circulosVAO.forEach((vao, index) => {
+          gl.bindVertexArray(vao);
+          
+          // Resaltar posibles movimientos
+          if (posiblesMovimientos.includes(index)) {
+            gl.uniform4f(uColor, 1.0, 1.0, 0.0, 0.7); // Amarillo para movimientos posibles
+          } else if (saltosMultiples.some(mov => mov.destino === index)) {
+            gl.uniform4f(uColor, 1.0, 0.5, 0.0, 0.7); // Naranja para saltos múltiples
+          } else {
+            gl.uniform4f(uColor, 254 / 255, 216 / 255, 177 / 255, 1.0); // Color normal
+          }
+          
+          gl.drawArrays(gl.TRIANGLE_FAN, 0, 360);
+        });
+
+        // Dibujar triángulos (fichas)
+        triangulosVAO.forEach((vao, index) => {
+          gl.bindVertexArray(vao);
+          gl.uniform4f(uColor, ...fichas[index].color);
+          gl.drawArrays(gl.TRIANGLES, 0, 3);
+        });
+
+        gl.bindVertexArray(null);
+      }
+
+      /* Crea un círculo en posición específica */
+      function crearCirculo(x, y, radio = 0.08) {
+        var vertices = [];
+        for (var i = 0; i < 360; i++) {
+          var angulo = (i * Math.PI * 2) / 360;
+          vertices.push(x + Math.cos(angulo) * radio);
+          vertices.push(y + Math.sin(angulo) * radio);
+        }
+
+        var vao = gl.createVertexArray();
+        gl.bindVertexArray(vao);
+
+        var buffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+        gl.bufferData(
+          gl.ARRAY_BUFFER,
+          new Float32Array(vertices),
+          gl.STATIC_DRAW
+        );
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+        gl.bindVertexArray(null);
+        return vao;
+      }
+
+      /* Crea un triángulo en posición específica */
+      function crearTriangulo(x, y, size = 0.06) {
+        var vertices = [
+          x,
+          y + size, // Vértice superior
+          x - size,
+          y - size, // Vértice inferior izquierdo
+          x + size,
+          y - size, // Vértice inferior derecho
+        ];
+
+        var vao = gl.createVertexArray();
+        gl.bindVertexArray(vao);
+
+        var buffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+        gl.bufferData(
+          gl.ARRAY_BUFFER,
+          new Float32Array(vertices),
+          gl.STATIC_DRAW
+        );
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+        gl.bindVertexArray(null);
+        return vao;
+      }
+
+      /* Actualiza las posiciones de los triángulos */
+      function actualizarTriangulos() {
+        // Eliminar VAOs antiguos
+        triangulosVAO.forEach((vao) => gl.deleteVertexArray(vao));
+        triangulosVAO = [];
+
+        // Crear nuevos VAOs en las posiciones actuales
+        fichas.forEach((ficha) => {
+          const circulo = configCirculos[ficha.posicion];
+          triangulosVAO.push(crearTriangulo(circulo.x, circulo.y));
+          circulo.ocupado = true;
+        });
+
+        dibuja();
+      }
+
+      /* Encuentra posiciones adyacentes */
+      function encontrarAdyacentes(posicion) {
+        const adyacentes = [];
+        const { x, y } = configCirculos[posicion];
+        
+        // Buscar todas las posiciones que están a una distancia similar a las adyacentes
+        configCirculos.forEach((circulo, index) => {
+          if (index !== posicion) {
+            const dx = Math.abs(circulo.x - x);
+            const dy = Math.abs(circulo.y - y);
+            const distancia = Math.sqrt(dx * dx + dy * dy);
+            
+            // Considerar adyacente si está a una distancia similar a los movimientos básicos
+            if (distancia < 0.3 && !circulo.ocupado) {
+              adyacentes.push(index);
+            }
+          }
+        });
+        
+        return adyacentes;
+      }
+
+      /* Encuentra saltos posibles */
+      function encontrarSaltos(posicion, jugador) {
+        const saltos = [];
+        const { x, y } = configCirculos[posicion];
+        
+        // Buscar posibles saltos en todas las direcciones
+        configCirculos.forEach((circulo, index) => {
+          if (index !== posicion && circulo.ocupado) {
+            // Calcular posición después del salto
+            const dx = circulo.x - x;
+            const dy = circulo.y - y;
+            const nuevaX = circulo.x + dx;
+            const nuevaY = circulo.y + dy;
+            
+            // Buscar si hay una posición vacía en la dirección del salto
+            const destino = configCirculos.findIndex(c => 
+              Math.abs(c.x - nuevaX) < 0.01 && 
+              Math.abs(c.y - nuevaY) < 0.01 && 
+              !c.ocupado
+            );
+            
+            if (destino !== -1) {
+              // Verificar si el destino no está en la base de otro jugador
+              let esBaseOtroJugador = false;
+              for (let i = 0; i < basesObjetivo.length; i++) {
+                if (i !== jugador && basesObjetivo[i].includes(destino)) {
+                  esBaseOtroJugador = true;
+                  break;
+                }
+              }
+              
+              if (!esBaseOtroJugador) {
+                saltos.push({
+                  tipo: "salto",
+                  destino: destino,
+                  sobre: index
+                });
+              }
+            }
+          }
+        });
+        
+        return saltos;
+      }
+
+      /* Encuentra todos los movimientos posibles para una ficha */
+      function encontrarMovimientos(fichaIndex) {
+        const ficha = fichas[fichaIndex];
+        const jugador = ficha.jugador;
+        const posicion = ficha.posicion;
+        
+        // Verificar si la ficha ya está en la base objetivo
+        if (basesObjetivo[jugador].includes(posicion)) {
+          return [];
+        }
+        
+        const movimientos = [];
+        
+        // Movimientos simples (adyacentes)
+        const adyacentes = encontrarAdyacentes(posicion);
+        adyacentes.forEach(destino => {
+          // Verificar si el destino no está en la base de otro jugador
+          let esBaseOtroJugador = false;
+          for (let i = 0; i < basesObjetivo.length; i++) {
+            if (i !== jugador && basesObjetivo[i].includes(destino)) {
+              esBaseOtroJugador = true;
+              break;
+            }
+          }
+          
+          if (!esBaseOtroJugador) {
+            movimientos.push({
+              tipo: "simple",
+              destino: destino
+            });
+          }
+        });
+        
+        // Movimientos de salto
+        const saltos = encontrarSaltos(posicion, jugador);
+        saltos.forEach(salto => movimientos.push(salto));
+        
+        return movimientos;
+      }
+
+      /* Verifica si el jugador actual ha ganado */
+      function verificarVictoria(jugador) {
+        // Contar cuántas fichas están en la base objetivo
+        const fichasEnBase = fichas.filter(f => 
+          f.jugador === jugador && basesObjetivo[jugador].includes(f.posicion)
+          .length);
+        
+        return fichasEnBase === 10;
+      }
+
+      /* Finaliza el turno del jugador actual */
+      function finalizarTurno() {
+        // Verificar si el jugador actual ha ganado
+        if (verificarVictoria(turnoActual)) {
+          const nombresJugadores = ["Rojo", "Celeste", "Azul", "Violeta", "Negro", "Verde"];
+          mensajeDiv.textContent = `¡Jugador ${nombresJugadores[turnoActual]} ha ganado!`;
+          return;
+        }
+        
+        // Cambiar al siguiente jugador
+        turnoActual = (turnoActual + 1) % 6;
+        
+        // Reiniciar variables de movimiento
+        fichaSeleccionada = null;
+        posiblesMovimientos = [];
+        saltosMultiples = [];
+        movimientoActual = [];
+        
+        // Actualizar mensaje
+        const nombresJugadores = ["Rojo", "Celeste", "Azul", "Violeta", "Negro", "Verde"];
+        mensajeDiv.textContent = `Turno del jugador ${nombresJugadores[turnoActual]}. Selecciona una ficha.`;
+        
+        // Redibujar
+        dibuja();
+      }
+
+      var fichaSeleccionadaNuevaPos = null;
+
+      /* Maneja clics del mouse */
+      function manejarClic(x, y) {
+        if (enAnimacion) return; // No permitir interacción durante animación
+
+        // Convertir coordenadas a WebGL
+        const xWebGL = (x / canvas.width) * 4 - 2;
+        const yWebGL = 2 - (y / canvas.height) * 4;
+
+        // Verificar si se hizo clic en un círculo
+        const circuloClicado = configCirculos.findIndex((circulo) => {
+          const dx = xWebGL - circulo.x;
+          const dy = yWebGL - circulo.y;
+          return dx * dx + dy * dy < 0.08 * 0.08; // Radio 0.08
+        });
+
+        if (circuloClicado === -1) return;
+
+        // Si hay saltos múltiples disponibles, solo permitir esos movimientos
+        if (saltosMultiples.length > 0) {
+          const saltoValido = saltosMultiples.find(mov => mov.destino === circuloClicado);
+          
+          if (saltoValido) {
+            // Configurar animación
+            enAnimacion = true;
+            fichaAnimada = fichaSeleccionada;
+            fichaSeleccionadaNuevaPos = circuloClicado;
+            
+            posicionInicialAnim = {
+              x: configCirculos[fichas[fichaSeleccionada].posicion].x,
+              y: configCirculos[fichas[fichaSeleccionada].posicion].y
+            };
+            
+            posicionFinalAnim = {
+              x: configCirculos[circuloClicado].x,
+              y: configCirculos[circuloClicado].y
+            };
+            
+            // Registrar el movimiento
+            movimientoActual.push(saltoValido);
+            
+            mensajeDiv.textContent = "Moviendo ficha...";
+            
+            // Iniciar animación
+            requestAnimationFrame(animarMovimiento);
+          }
+          return;
+        }
+
+        if (fichaSeleccionada === null) {
+          // Seleccionar ficha si hay una en este círculo y es del jugador actual
+          const fichaEnCirculo = fichas.findIndex(
+            (f) => f.posicion === circuloClicado && f.jugador === turnoActual
+          );
+          
+          if (fichaEnCirculo !== -1) {
+            fichaSeleccionada = fichaEnCirculo;
+            posiblesMovimientos = encontrarMovimientos(fichaSeleccionada);
+            
+            const nombresJugadores = ["Rojo", "Celeste", "Azul", "Violeta", "Negro", "Verde"];
+            mensajeDiv.textContent = `Ficha del jugador ${nombresJugadores[turnoActual]} seleccionada. Haz clic en un círculo resaltado para moverla.`;
+            
+            dibuja();
+          }
+        } else {
+          // Verificar si el movimiento es válido
+          const movimientoValido = posiblesMovimientos.find(mov => mov.destino === circuloClicado);
+          
+          if (movimientoValido && !configCirculos[circuloClicado].ocupado) {
+            // Configurar animación
+            enAnimacion = true;
+            fichaAnimada = fichaSeleccionada;
+            fichaSeleccionadaNuevaPos = circuloClicado;
+            
+            posicionInicialAnim = {
+              x: configCirculos[fichas[fichaSeleccionada].posicion].x,
+              y: configCirculos[fichas[fichaSeleccionada].posicion].y
+            };
+            
+            posicionFinalAnim = {
+              x: configCirculos[circuloClicado].x,
+              y: configCirculos[circuloClicado].y
+            };
+            
+            // Registrar el movimiento
+            movimientoActual = [movimientoValido];
+            
+            mensajeDiv.textContent = "Moviendo ficha...";
+            
+            // Iniciar animación
+            requestAnimationFrame(animarMovimiento);
+          } else {
+            mensajeDiv.textContent = "Movimiento no válido. Intenta de nuevo.";
+          }
+        }
+      }
+
+      /* Inicialización principal */
+      function main() {
+        canvas = document.getElementById("webglcanvas");
+        gl = canvas.getContext("webgl2");
+        gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+        // Compilar shaders
+        var shaderDeVertice = gl.createShader(gl.VERTEX_SHADER);
+        gl.shaderSource(
+          shaderDeVertice,
+          document.getElementById("vs").text.trim()
+        );
+        gl.compileShader(shaderDeVertice);
+
+        var shaderDeFragmento = gl.createShader(gl.FRAGMENT_SHADER);
+        gl.shaderSource(
+          shaderDeFragmento,
+          document.getElementById("fs").text.trim()
+        );
+        gl.compileShader(shaderDeFragmento);
+
+        var programaID = gl.createProgram();
+        gl.attachShader(programaID, shaderDeVertice);
+        gl.attachShader(programaID, shaderDeFragmento);
+        gl.linkProgram(programaID);
+        gl.useProgram(programaID);
+
+        // Crear círculo grande
+        var circuloGrandeVertices = [];
+        for (var i = 0; i < 360; i++) {
+          var angulo = (i * Math.PI * 2) / 360;
+          circuloGrandeVertices.push(Math.cos(angulo) * 2);
+          circuloGrandeVertices.push(Math.sin(angulo) * 2);
+        }
+        circuloGrandeVAO = gl.createVertexArray();
+        gl.bindVertexArray(circuloGrandeVAO);
+        var buffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+        gl.bufferData(
+          gl.ARRAY_BUFFER,
+          new Float32Array(circuloGrandeVertices),
+          gl.STATIC_DRAW
+        );
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+        // Crear estrella
+        var estrellaVertices = [
+          0.0, 2.0, -0.58, 1.0, 0.58, 1.0, -1.73, 1.0, 1.73, 1.0, -1.15, 0.0,
+          1.15, 0.0, -1.73, -1.0, 1.73, -1.0, -0.58, -1.0, 0.58, -1.0, 0.0,
+          -2.0,
+        ];
+        estrellaVAO = gl.createVertexArray();
+        gl.bindVertexArray(estrellaVAO);
+        buffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+        gl.bufferData(
+          gl.ARRAY_BUFFER,
+          new Float32Array(estrellaVertices),
+          gl.STATIC_DRAW
+        );
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+        // Crear círculos pequeños
+        configCirculos.forEach((circulo) => {
+          circulosVAO.push(crearCirculo(circulo.x, circulo.y));
+        });
+
+        // Inicializar fichas (triángulos)
+        actualizarTriangulos();
+
+        // Configurar eventos
+        canvas.addEventListener("click", (e) => {
+          const rect = canvas.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const y = e.clientY - rect.top;
+          manejarClic(x, y);
+        });
+
+        // Configurar uniformes
+        uColor = gl.getUniformLocation(programaID, "uColor");
+        uMatrizProyeccion = gl.getUniformLocation(
+          programaID,
+          "uMatrizProyeccion"
+        );
+        ortho(MatrizProyeccion, -2, 2, -2, 2, -1, 1);
+        gl.uniformMatrix4fv(uMatrizProyeccion, false, MatrizProyeccion);
+        gl.clearColor(111 / 255, 78 / 255, 55 / 255, 1);
+
+        // Iniciar juego
+        const nombresJugadores = ["Rojo", "Celeste", "Azul", "Violeta", "Negro", "Verde"];
+        mensajeDiv.textContent = `Turno del jugador ${nombresJugadores[turnoActual]}. Selecciona una ficha.`;
+        
+        dibuja();
+      }
+      window.onload = main;
+    </script>
+  </body>
+</html>
