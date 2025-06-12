@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>jkgh</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+        background-color: #000000;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- Sprites ocultos -->
+    <div id="sprites" style="display: none">
+      <img
+        id="red-piece"
+        src="rojo.jpg"
+        alt="Ficha roja"
+        crossorigin="anonymous"
+      />
+      <img
+        id="blue-piece"
+        src="azul.jpg"
+        alt="Ficha azul"
+        crossorigin="anonymous"
+      />
+    </div>
+
+    <script>
+      // 1. Configuración inicial
+      const canvas = document.getElementById("gameCanvas");
+      const gl = canvas.getContext("webgl2");
+
+      if (!gl) {
+        alert("WebGL2 no está disponible en tu navegador");
+        throw new Error("WebGL2 no disponible");
+      }
+
+      function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        gl.viewport(0, 0, canvas.width, canvas.height);
+      }
+      resizeCanvas();
+
+      const vertexShaderSource = `#version 300 es
+        in vec2 aPosition;
+        in vec2 aTexCoord;
+        out vec2 vTexCoord;
+        uniform mat4 uProjection;
+        
+        void main() {
+            gl_Position = uProjection * vec4(aPosition, 0.0, 1.0);
+            vTexCoord = aTexCoord;
+        }`;
+
+      const fragmentShaderSource = `#version 300 es
+        precision mediump float;
+        in vec2 vTexCoord;
+        out vec4 fragColor;
+        uniform sampler2D uTexture;
+        
+        void main() {
+            fragColor = texture(uTexture, vTexCoord);
+            if (fragColor.a < 0.8) discard;
+        }`;
+
+      function compileShader(source, type) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+          console.error(
+            "Error compilando shader:",
+            gl.getShaderInfoLog(shader)
+          );
+          gl.deleteShader(shader);
+          return null;
+        }
+        return shader;
+      }
+
+      const vertexShader = compileShader(vertexShaderSource, gl.VERTEX_SHADER);
+      const fragmentShader = compileShader(
+        fragmentShaderSource,
+        gl.FRAGMENT_SHADER
+      );
+
+      const shaderProgram = gl.createProgram();
+      gl.attachShader(shaderProgram, vertexShader);
+      gl.attachShader(shaderProgram, fragmentShader);
+      gl.linkProgram(shaderProgram);
+
+      if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+        console.error(
+          "Error linkando programa:",
+          gl.getProgramInfoLog(shaderProgram)
+        );
+      }
+
+      gl.useProgram(shaderProgram);
+
+      const projectionMatrix = new Float32Array(16);
+      function ortho(out, left, right, bottom, top, near, far) {
+        out[0] = 2 / (right - left);
+        out[4] = 0;
+        out[8] = 0;
+        out[12] = -(right + left) / (right - left);
+        out[1] = 0;
+        out[5] = 2 / (top - bottom);
+        out[9] = 0;
+        out[13] = -(top + bottom) / (top - bottom);
+        out[2] = 0;
+        out[6] = 0;
+        out[10] = -2 / (far - near);
+        out[14] = -(far + near) / (far - near);
+        out[3] = 0;
+        out[7] = 0;
+        out[11] = 0;
+        out[15] = 1;
+      }
+      ortho(projectionMatrix, -2, 2, -2, 2, -1, 1);
+
+      const uProjection = gl.getUniformLocation(shaderProgram, "uProjection");
+      gl.uniformMatrix4fv(uProjection, false, projectionMatrix);
+
+      const textures = {};
+      const pieces = [
+        { id: "red-piece", x: -0.5, y: 0.5, color: "red" },
+        { id: "blue-piece", x: 0.5, y: -0.5, color: "blue" },
+      ];
+
+      function loadTexture(img, texture) {
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,
+          gl.RGBA,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          img
+        );
+
+        gl.generateMipmap(gl.TEXTURE_2D);
+      }
+
+      function loadTextures() {
+        return new Promise((resolve) => {
+          let loaded = 0;
+          const total = pieces.length;
+
+          pieces.forEach((piece) => {
+            const img = document.getElementById(piece.id);
+            textures[piece.id] = gl.createTexture();
+
+            img.onload = () => {
+              loadTexture(img, textures[piece.id]);
+              loaded++;
+              if (loaded === total) resolve();
+            };
+
+            img.onerror = () => {
+              console.error(`Error cargando imagen: ${piece.id}`);
+              const fallbackColor =
+                piece.color === "red" ? [255, 0, 0, 255] : [0, 0, 255, 255];
+              const pixel = new Uint8Array(fallbackColor);
+              gl.bindTexture(gl.TEXTURE_2D, textures[piece.id]);
+              gl.texImage2D(
+                gl.TEXTURE_2D,
+                0,
+                gl.RGBA,
+                1,
+                1,
+                0,
+                gl.RGBA,
+                gl.UNSIGNED_BYTE,
+                pixel
+              );
+              loaded++;
+              if (loaded === total) resolve();
+            };
+          });
+        });
+      }
+
+      const pieceVAOs = {};
+
+      function createSpriteVAO(x, y, width, height) {
+        const w = width / 2;
+        const h = height / 2;
+
+        const vertices = new Float32Array([
+          x - w,
+          y - h,
+          0.0,
+          1.0, // Inferior izquierdo
+          x + w,
+          y - h,
+          1.0,
+          1.0, // Inferior derecho
+          x - w,
+          y + h,
+          0.0,
+          0.0, // Superior izquierdo
+          x + w,
+          y + h,
+          1.0,
+          0.0, // Superior derecho
+        ]);
+
+        const indices = new Uint16Array([0, 1, 2, 1, 3, 2]);
+
+        const vao = gl.createVertexArray();
+        gl.bindVertexArray(vao);
+
+        // Buffer de vértices
+        const vertexBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+        // Atributos
+        const aPosition = gl.getAttribLocation(shaderProgram, "aPosition");
+        gl.enableVertexAttribArray(aPosition);
+        gl.vertexAttribPointer(aPosition, 2, gl.FLOAT, false, 16, 0);
+
+        const aTexCoord = gl.getAttribLocation(shaderProgram, "aTexCoord");
+        gl.enableVertexAttribArray(aTexCoord);
+        gl.vertexAttribPointer(aTexCoord, 2, gl.FLOAT, false, 16, 8);
+
+        // Buffer de índices
+        const indexBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+
+        gl.bindVertexArray(null);
+        return vao;
+      }
+
+      // 7. Inicialización del juego
+      async function init() {
+        // Esperar a que carguen las texturas
+        await loadTextures();
+
+        // Crear VAOs para cada pieza
+        pieces.forEach((piece) => {
+          pieceVAOs[piece.id] = createSpriteVAO(piece.x, piece.y, 0.4, 0.4);
+        });
+
+        // Configurar evento de clic
+        canvas.addEventListener("click", handleClick);
+
+        // Renderizar
+        render();
+      }
+
+      // 8. Renderizado
+      function render() {
+        gl.clearColor(0.1, 0.2, 0.3, 0.5);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        // Dibujar cada pieza
+        pieces.forEach((piece) => {
+          gl.bindVertexArray(pieceVAOs[piece.id]);
+          gl.activeTexture(gl.TEXTURE0);
+          gl.bindTexture(gl.TEXTURE_2D, textures[piece.id]);
+          gl.uniform1i(gl.getUniformLocation(shaderProgram, "uTexture"), 0);
+          gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+        });
+
+        gl.bindVertexArray(null);
+      }
+
+      let selectedPiece = null;
+
+      function handleClick(event) {
+        const rect = canvas.getBoundingClientRect();
+        const x = ((event.clientX - rect.left) / canvas.width) * 4 - 2;
+        const y = 2 - ((event.clientY - rect.top) / canvas.height) * 4;
+
+        const clickedPiece = pieces.find((piece) => {
+          return Math.abs(x - piece.x) < 0.2 && Math.abs(y - piece.y) < 0.2;
+        });
+
+        if (clickedPiece) {
+          if (selectedPiece === clickedPiece) {
+            selectedPiece = null;
+          } else {
+            selectedPiece = clickedPiece;
+          }
+        } else if (selectedPiece) {
+          selectedPiece.x = x;
+          selectedPiece.y = y;
+
+          gl.deleteVertexArray(pieceVAOs[selectedPiece.id]);
+          pieceVAOs[selectedPiece.id] = createSpriteVAO(
+            selectedPiece.x,
+            selectedPiece.y,
+            0.4,
+            0.4
+          );
+
+          selectedPiece = null;
+        }
+
+        render();
+      }
+
+      init().catch((err) => {
+        console.error("Error inicializando la aplicación:", err);
+      });
+
+      window.addEventListener("resize", () => {
+        resizeCanvas();
+        render();
+      });
+    </script>
+  </body>
+</html>
