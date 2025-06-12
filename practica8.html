@@ -1,0 +1,1648 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>
+      Jumanji: El Juego de Tablero con Textura, Jugadores Texturizados e
+      Iluminación
+    </title>
+    <meta http-equiv="content-type" content="text/html;charset=utf-8" />
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        background-color: #b0c4de;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        display: flex;
+      }
+      canvas {
+        display: block;
+        margin: auto;
+        border: 2px solid #555;
+      }
+      #content {
+        text-align: center;
+        padding-top: 20px;
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+      }
+      #ui {
+        width: 320px; /* Ancho fijo para la UI */
+        background-color: #fff;
+        padding: 20px;
+        border-left: 1px solid #ccc;
+        box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+      }
+      h2 {
+        margin-top: 0;
+        color: #333;
+      }
+      #status {
+        font-size: 1.4em;
+        font-weight: bold;
+        margin-bottom: 10px;
+        color: #0056b3;
+      }
+      .player-info {
+        padding: 8px 15px;
+        border-radius: 5px;
+        color: white;
+        width: 80%;
+        text-align: center;
+        font-weight: bold;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .player-info span {
+        flex-grow: 1;
+      }
+      button {
+        padding: 12px 25px;
+        font-size: 18px;
+        cursor: pointer;
+        border: none;
+        border-radius: 5px;
+        background-color: #4caf50;
+        color: white;
+        transition: background-color 0.3s ease;
+        width: 80%;
+      }
+      button:hover {
+        background-color: #45a049;
+      }
+      button:disabled {
+        background-color: #cccccc;
+        cursor: not-allowed;
+      }
+      button#reset {
+        background-color: #f44336;
+      }
+      button#reset:hover {
+        background-color: #da190b;
+      }
+      #diceResult {
+        font-size: 2.2em;
+        font-weight: bold;
+        color: #333;
+        margin-top: 10px;
+        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+      }
+      #winnerMessage {
+        font-size: 1.8em;
+        color: #8b0000;
+        font-weight: bold;
+        margin-top: 15px;
+        text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
+      }
+
+      #configScreen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.7);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+      }
+      #configPanel {
+        background-color: #fff;
+        padding: 30px;
+        border-radius: 10px;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        text-align: center;
+      }
+      #configPanel label {
+        font-size: 1.1em;
+        margin-bottom: 5px;
+        display: block;
+        color: #555;
+      }
+      #configPanel input {
+        padding: 10px;
+        font-size: 1.1em;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        width: 180px;
+        text-align: center;
+        box-sizing: border-box;
+      }
+      #configPanel button {
+        margin-top: 15px;
+        width: auto;
+        align-self: center;
+        padding: 12px 30px;
+      }
+      #configPanel #errorMessage {
+        color: red;
+        font-weight: bold;
+        height: 20px; /* Para mantener el espacio */
+      }
+      .hidden {
+        display: none !important;
+      }
+      /* Estilos para el nuevo control de brillo */
+      .brightness-control {
+        width: 80%;
+        margin-top: 15px;
+        text-align: center;
+      }
+      .brightness-control label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+        color: #555;
+        font-size: 1.1em;
+      }
+      .brightness-control input[type="range"] {
+        width: 100%;
+        -webkit-appearance: none;
+        height: 8px;
+        background: #d3d3d3;
+        outline: none;
+        opacity: 0.7;
+        -webkit-transition: 0.2s;
+        transition: opacity 0.2s;
+        border-radius: 5px;
+      }
+      .brightness-control input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #4caf50;
+        cursor: pointer;
+      }
+      .brightness-control input[type="range"]::-moz-range-thumb {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #4caf50;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="content">
+      <h2>Tarea</h2>
+      <div id="canvas-holder">
+        <canvas
+          id="webglcanvas"
+          style="border: none"
+          width="600"
+          height="600"
+        ></canvas>
+      </div>
+      <div id="winnerMessage"></div>
+    </div>
+
+    <div id="ui" class="hidden">
+      <h2>Juego de Tablero</h2>
+      <div id="status">Turno del Jugador 1</div>
+      <div id="players-info-container"></div>
+      <button id="rollDice">Tirar Dado</button>
+      <div id="diceResult"></div>
+      <hr
+        style="
+          width: 80%;
+          border: 0;
+          border-top: 1px solid #eee;
+          margin: 15px 0;
+        "
+      />
+      <button id="perspectiveView">Vista Perspectiva</button>
+      <button id="orthographicView">Vista Paralela</button>
+
+      <div class="brightness-control">
+        <label for="lightBrightness">Brillo de la Luz:</label>
+        <input
+          type="range"
+          id="lightBrightness"
+          min="0.0"
+          max="2.0"
+          step="0.01"
+          value="1.0"
+        />
+      </div>
+
+      <button id="reset">Reiniciar Juego</button>
+    </div>
+
+    <div id="configScreen">
+      <div id="configPanel">
+        <h2>Configurar Juego</h2>
+        <label for="boardSizeInput">Tamaño del Tablero (Impar, Max 15):</label>
+        <input type="number" id="boardSizeInput" min="3" max="15" value="5" />
+        <label for="numPlayersInput">Número de Jugadores (2-6):</label>
+        <input type="number" id="numPlayersInput" min="2" max="6" value="2" />
+        <div id="errorMessage"></div>
+        <button id="startGameButton">Iniciar Juego</button>
+      </div>
+    </div>
+
+    <script id="vs" type="vertex">
+      #version 300 es
+      precision mediump float;
+      uniform mat4 uMatrizProyeccion;
+      uniform mat4 uMatrizVista;
+      uniform mat4 uMatrizModelo;
+
+      layout(location = 0) in vec3 aVertices;
+      layout(location = 1) in vec4 aColores;
+      layout(location = 2) in vec2 aTexCoords;
+      layout(location = 3) in vec3 aNormales; // NUEVO: Atributo para las normales
+
+      out vec4 vColores;
+      out vec2 vTexCoords;
+      out vec3 vNormales;     // NUEVO: Normales para el fragment shader
+      out vec3 vPosicionFrag; // NUEVO: Posición del fragmento en espacio de mundo
+
+      void main() {
+          vec4 worldPosition = uMatrizModelo * vec4(aVertices, 1.0);
+          vPosicionFrag = worldPosition.xyz; // Posición del fragmento en espacio de mundo
+
+          // Transformar la normal al espacio de mundo (asumiendo que no hay escalado no uniforme)
+          vNormales = mat3(transpose(inverse(uMatrizModelo))) * aNormales;
+          vNormales = normalize(vNormales);
+
+          vColores = aColores;
+          vTexCoords = aTexCoords;
+          gl_Position = uMatrizProyeccion * uMatrizVista * uMatrizModelo * vec4(aVertices, 1.0);
+      }
+    </script>
+
+    <script id="fs" type="fragment">
+      #version 300 es
+      precision highp float;
+
+      in vec4 vColores;
+      in vec2 vTexCoords;
+      in vec3 vNormales;     // NUEVO: Normales interpoladas
+      in vec3 vPosicionFrag; // NUEVO: Posición del fragmento interpolada
+
+      uniform sampler2D uSampler;
+      uniform bool uUseTexture;
+      uniform vec3 uLightPosition;   // NUEVO: Posición de la fuente de luz
+      uniform float uLightBrightness; // NUEVO: Brillo de la luz
+
+      out vec4 color;
+
+      void main() {
+          vec4 baseColor;
+          if (uUseTexture) {
+              baseColor = texture(uSampler, vTexCoords);
+          } else {
+              baseColor = vColores;
+          }
+
+          // Cálculo de iluminación simple
+          // Dirección de la luz (desde el fragmento hacia la luz)
+          vec3 lightDirection = normalize(uLightPosition - vPosicionFrag);
+
+          // Componente difusa (Lambertian)
+          // Se usa clamp para evitar valores negativos si la normal apunta en dirección opuesta a la luz
+          float diff = max(dot(vNormales, lightDirection), 0.0);
+
+          // Factor de atenuación de la luz (basado en la distancia al centro)
+          // Una atenuación lineal simple, puedes ajustar los valores para el efecto deseado
+          float distance = length(uLightPosition - vPosicionFrag);
+          float attenuation = 1.0 / (1.0 + 0.1 * distance + 0.01 * distance * distance); // cuadrática
+
+          // Factor de iluminación total
+          float lightFactor = diff * attenuation * uLightBrightness;
+          lightFactor = clamp(lightFactor, 0.0, 1.0); // Asegurarse de que esté entre 0 y 1
+
+          // Aplicar la iluminación al color base
+          color = vec4(baseColor.rgb * lightFactor, baseColor.a);
+
+          // Para asegurar que los jugadores se vean bien incluso con iluminación tenue del tablero
+          // podrías añadir un componente ambiental o ajustar la lógica si no quieres que el brillo
+          // afecte a los jugadores por igual.
+          // Para mantenerlo simple, la iluminación afectará a todos los objetos.
+      }
+    </script>
+
+    <script>
+      "use strict";
+
+      /* Variables globales */
+      var canvas;
+      var programaID;
+      var gl;
+      var tablero = [];
+      var players = [];
+      var tableroTexture;
+      var playerTextures = [];
+
+      /* Variables Uniformes */
+      var uMatrizModelo;
+      var uMatrizVista;
+      var uMatrizProyeccion;
+      var uSampler;
+      var uUseTexture;
+      var uLightPosition; // NUEVO: Ubicación del uniforme de posición de la luz
+      var uLightBrightness; // NUEVO: Ubicación del uniforme de brillo de la luz
+
+      /* Matrices */
+      var MatrizModelo = new Array(16);
+      var MatrizVista = new Array(16);
+      var MatrizProyeccion = new Array(16);
+
+      /* Para la interacción */
+      var rotX = 0;
+      var rotY = 0;
+      var antX;
+      var antY;
+      var boton_izq_presionado = false;
+
+      /* Variables para el juego y movimiento en espiral */
+      let BOARD_SIZE = 5;
+      const CELL_SIZE = 2.0;
+      let spiralPath = [];
+      let currentPlayerIndex = 0;
+      let gameOver = false;
+      let centerCellIndex;
+
+      let currentProjectionType = "perspective";
+
+      let statusDiv;
+      let playersInfoContainer;
+      let rollDiceButton;
+      let resetButton;
+      let diceResultDiv;
+      let winnerMessageDiv;
+      let perspectiveViewButton;
+      let orthographicViewButton;
+      let lightBrightnessSlider; // NUEVO: Referencia al slider de brillo
+
+      let configScreen;
+      let boardSizeInput;
+      let numPlayersInput;
+      let startGameButton;
+      let errorMessageDiv;
+      let uiContainer;
+
+      // Colores predefinidos para los jugadores (más vibrantes)
+      const playerColors = [
+        [1.0, 0.0, 0.0], // Rojo vibrante
+        [0.0, 0.0, 1.0], // Azul vibrante
+        [0.0, 0.8, 0.0], // Verde brillante
+        [1.0, 1.0, 0.0], // Amarillo puro
+        [1.0, 0.5, 0.0], // Naranja intenso
+        [0.6, 0.2, 0.8], // Púrpura
+      ];
+
+      // Rutas de las texturas para los jugadores
+      const playerTexturePaths = [
+        "rojo.jpg",
+        "timon.jpg",
+        "earth.jpg",
+        "ej1.jpg",
+        "link.png",
+        "fondo.jpg",
+      ];
+
+      /***************************************************************************/
+      /* Se crean, compilan y enlazan los programas Shader                       */
+      /***************************************************************************/
+      function compilaEnlazaLosShaders() {
+        var shaderDeVertice = gl.createShader(gl.VERTEX_SHADER);
+        gl.shaderSource(
+          shaderDeVertice,
+          document.getElementById("vs").text.trim()
+        );
+        gl.compileShader(shaderDeVertice);
+        if (!gl.getShaderParameter(shaderDeVertice, gl.COMPILE_STATUS)) {
+          console.error(
+            "Error compilando shader de vértice:",
+            gl.getShaderInfoLog(shaderDeVertice)
+          );
+          return;
+        }
+
+        var shaderDeFragmento = gl.createShader(gl.FRAGMENT_SHADER);
+        gl.shaderSource(
+          shaderDeFragmento,
+          document.getElementById("fs").text.trim()
+        );
+        gl.compileShader(shaderDeFragmento);
+        if (!gl.getShaderParameter(shaderDeFragmento, gl.COMPILE_STATUS)) {
+          console.error(
+            "Error compilando shader de fragmento:",
+            gl.getShaderInfoLog(shaderDeFragmento)
+          );
+          return;
+        }
+
+        programaID = gl.createProgram();
+        gl.attachShader(programaID, shaderDeVertice);
+        gl.attachShader(programaID, shaderDeFragmento);
+        gl.linkProgram(programaID);
+        if (!gl.getProgramParameter(programaID, gl.LINK_STATUS)) {
+          console.error(
+            "Error enlazando programa:",
+            gl.getProgramInfoLog(programaID)
+          );
+          return;
+        }
+
+        gl.useProgram(programaID);
+      }
+
+      /***************************************************************************/
+      /* Transformaciones mediante matrices                                      */
+      /***************************************************************************/
+
+      function toRadians(grados) {
+        return (grados * Math.PI) / 180;
+      }
+
+      function identidad(r) {
+        r[0] = 1;
+        r[4] = 0;
+        r[8] = 0;
+        r[12] = 0;
+        r[1] = 0;
+        r[5] = 1;
+        r[9] = 0;
+        r[13] = 0;
+        r[2] = 0;
+        r[6] = 0;
+        r[10] = 1;
+        r[14] = 0;
+        r[3] = 0;
+        r[7] = 0;
+        r[11] = 0;
+        r[15] = 1;
+      }
+
+      function traslacion(matriz, tx, ty, tz) {
+        var r = new Array(16);
+        r[0] = 1;
+        r[4] = 0;
+        r[8] = 0;
+        r[12] = tx;
+        r[1] = 0;
+        r[5] = 1;
+        r[9] = 0;
+        r[13] = ty;
+        r[2] = 0;
+        r[6] = 0;
+        r[10] = 1;
+        r[14] = tz;
+        r[3] = 0;
+        r[7] = 0;
+        r[11] = 0;
+        r[15] = 1;
+        multiplica(matriz, matriz, r);
+      }
+
+      function escalacion(matriz, sx, sy, sz) {
+        var r = new Array(16);
+        r[0] = sx;
+        r[4] = 0;
+        r[8] = 0;
+        r[12] = 0;
+        r[1] = 0;
+        r[5] = sy;
+        r[9] = 0;
+        r[13] = 0;
+        r[2] = 0;
+        r[6] = 0;
+        r[10] = sz;
+        r[14] = 0;
+        r[3] = 0;
+        r[7] = 0;
+        r[11] = 0;
+        r[15] = 1;
+        multiplica(matriz, matriz, r);
+      }
+
+      function rotacionX(matriz, theta) {
+        let r = new Array(16);
+        var c = Math.cos(toRadians(theta));
+        var s = Math.sin(toRadians(theta));
+        r[0] = 1;
+        r[4] = 0;
+        r[8] = 0;
+        r[12] = 0;
+        r[1] = 0;
+        r[5] = c;
+        r[9] = -s;
+        r[13] = 0;
+        r[2] = 0;
+        r[6] = s;
+        r[10] = c;
+        r[14] = 0;
+        r[3] = 0;
+        r[7] = 0;
+        r[11] = 0;
+        r[15] = 1;
+        multiplica(matriz, matriz, r);
+      }
+
+      function rotacionY(matriz, theta) {
+        let r = new Array(16);
+        var c = Math.cos(toRadians(theta));
+        var s = Math.sin(toRadians(theta));
+        r[0] = c;
+        r[4] = 0;
+        r[8] = s;
+        r[12] = 0;
+        r[1] = 0;
+        r[5] = 1;
+        r[9] = 0;
+        r[13] = 0;
+        r[2] = -s;
+        r[6] = 0;
+        r[10] = c;
+        r[14] = 0;
+        r[3] = 0;
+        r[7] = 0;
+        r[11] = 0;
+        r[15] = 1;
+        multiplica(matriz, matriz, r);
+      }
+
+      function rotacionZ(matriz, theta) {
+        let r = new Array(16);
+        var c = Math.cos(toRadians(theta));
+        var s = Math.sin(toRadians(theta));
+        r[0] = c;
+        r[4] = -s;
+        r[8] = 0;
+        r[12] = 0;
+        r[1] = s;
+        r[5] = c;
+        r[9] = 0;
+        r[13] = 0;
+        r[2] = 0;
+        r[6] = 0;
+        r[10] = 1;
+        r[14] = 0;
+        r[3] = 0;
+        r[7] = 0;
+        r[11] = 0;
+        r[15] = 1;
+        multiplica(matriz, matriz, r);
+      }
+
+      function ortho(r, izq, der, abj, arr, cerca, lejos) {
+        r[0] = 2 / (der - izq);
+        r[4] = 0;
+        r[8] = 0;
+        r[12] = -(der + izq) / (der - izq);
+        r[1] = 0;
+        r[5] = 2 / (arr - abj);
+        r[9] = 0;
+        r[13] = -(arr + abj) / (arr - abj);
+        r[2] = 0;
+        r[6] = 0;
+        r[10] = -2 / (lejos - cerca);
+        r[14] = -(lejos + cerca) / (lejos - cerca);
+        r[3] = 0;
+        r[7] = 0;
+        r[11] = 0;
+        r[15] = 1;
+      }
+
+      function frustum(r, izq, der, abj, arr, cerca, lejos) {
+        r[0] = (2 * cerca) / (der - izq);
+        r[4] = 0;
+        r[8] = (der + izq) / (der - izq);
+        r[12] = 0;
+        r[1] = 0;
+        r[5] = (2 * cerca) / (arr - abj);
+        r[9] = (arr + abj) / (arr - abj);
+        r[13] = 0;
+        r[2] = 0;
+        r[6] = 0;
+        r[10] = -(lejos + cerca) / (lejos - cerca);
+        r[14] = (-2 * lejos * cerca) / (lejos - cerca);
+        r[3] = 0;
+        r[7] = 0;
+        r[11] = -1;
+        r[15] = 0;
+      }
+
+      function perspective(r, fovy, aspecto, cerca, lejos) {
+        var ang = fovy * 0.5;
+        var f =
+          (Math.abs(Math.sin(toRadians(ang))) < 1e-8 ? 0 : 1) /
+          Math.tan(toRadians(ang));
+        r[0] = f / aspecto;
+        r[4] = 0;
+        r[8] = 0;
+        r[12] = 0;
+        r[1] = 0;
+        r[5] = f;
+        r[9] = 0;
+        r[13] = 0;
+        r[2] = 0;
+        r[6] = 0;
+        r[10] = -(lejos + cerca) / (lejos - cerca);
+        r[14] = (-2.0 * lejos * cerca) / (lejos - cerca);
+        r[3] = 0;
+        r[7] = 0;
+        r[11] = -1.0;
+        r[15] = 0;
+      }
+
+      function multiplica(c, a, b) {
+        let r = new Array(16);
+        let i, j, k;
+        for (i = 0; i < 4; i++) {
+          for (j = 0; j < 4; j++) {
+            let s = 0;
+            for (k = 0; k < 4; k++) s = s + a[i + k * 4] * b[k + j * 4];
+            r[i + j * 4] = s;
+          }
+        }
+        for (i = 0; i < 16; i++) c[i] = r[i];
+      }
+
+      function lookAt(
+        r,
+        vistaX,
+        vistaY,
+        vistaZ,
+        centroX,
+        centroY,
+        centroZ,
+        arribaX,
+        arribaY,
+        arribaZ
+      ) {
+        var vista = new Vector3(vistaX, vistaY, vistaZ);
+        var centro = new Vector3(centroX, centroY, centroZ);
+        var arriba = new Vector3(arribaX, arribaY, arribaZ);
+
+        /* n = vista - centro */
+        var n = vista.menos(centro);
+
+        /* u = u / || u || */
+        n.normaliza();
+
+        /* v = arriba */
+        var v = arriba;
+
+        /* u = v x n */
+        var u = v.producto_vectorial(n);
+
+        /* u = u / || u || */
+        u.normaliza();
+
+        /* Recalcula v: v = n x u */
+        v = n.producto_vectorial(u);
+
+        r[0] = u.x;
+        r[4] = u.y;
+        r[8] = u.z;
+        r[12] = -(vistaX * u.x + vistaY * u.y + vistaZ * u.z);
+        r[1] = v.x;
+        r[5] = v.y;
+        r[9] = v.z;
+        r[13] = -(vistaX * v.x + vistaY * v.y + vistaZ * v.z);
+        r[2] = n.x;
+        r[6] = n.y;
+        r[10] = n.z;
+        r[14] = -(vistaX * n.x + vistaY * n.y + vistaZ * n.z);
+        r[3] = 0;
+        r[7] = 0;
+        r[11] = 0;
+        r[15] = 1;
+      }
+
+      /***************************************************************************/
+      /* La Clase Vector3                                                        */
+      /***************************************************************************/
+
+      class Vector3 {
+        constructor(x, y, z) {
+          this.x = x;
+          this.y = y;
+          this.z = z;
+        }
+
+        mas(v2) {
+          return new Vector3(this.x + v2.x, this.y + v2.y, this.z + v2.z);
+        }
+
+        menos(v2) {
+          return new Vector3(this.x - v2.x, this.y - v2.y, this.z - v2.z);
+        }
+
+        producto_vectorial(v2) {
+          var r = new Vector3();
+          r.x = this.y * v2.z - this.z * v2.y;
+          r.y = this.z * v2.x - this.x * v2.z;
+          r.z = this.x * v2.y - this.y * v2.x;
+          return r;
+        }
+
+        producto_escalar(v2) {
+          return this.x * v2.x + this.y * v2.y + this.z * v2.z;
+        }
+
+        longitud() {
+          return Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z);
+        }
+
+        normaliza() {
+          var l = this.longitud();
+          if (l > 0) {
+            this.x = this.x / l;
+            this.y = this.y / l;
+            this.z = this.z / l;
+          }
+        }
+
+        normal(v1, v2, v3) {
+          var u = v2.menos(v1);
+          var v = v3.menos(v1);
+          var n = u.producto_vectorial(v);
+          n.normaliza();
+          return n;
+        }
+
+        toString() {
+          return (
+            "Vector3 [x=" + this.x + ", y=" + this.y + ", z=" + this.z + "]"
+          );
+        }
+      }
+
+      /***********************************************************************************/
+      /* Se define la geometría y se almacenan en los buffers de memoria y se renderiza. */
+      /***********************************************************************************/
+
+      class Cubo {
+        constructor(gl, r, g, b) {
+          var vertices = [
+            // Frente (Z positivo)
+            -0.5,
+            -0.5,
+            0.5, // 0
+            0.5,
+            -0.5,
+            0.5, // 1
+            0.5,
+            0.5,
+            0.5, // 2
+            -0.5,
+            0.5,
+            0.5, // 3
+            // Atrás (Z negativo)
+            -0.5,
+            0.5,
+            -0.5, // 4
+            0.5,
+            0.5,
+            -0.5, // 5
+            0.5,
+            -0.5,
+            -0.5, // 6
+            -0.5,
+            -0.5,
+            -0.5, // 7
+            // Izquierda (X negativo)
+            -0.5,
+            -0.5,
+            -0.5, // 8
+            -0.5,
+            -0.5,
+            0.5, // 9
+            -0.5,
+            0.5,
+            0.5, // 10
+            -0.5,
+            0.5,
+            -0.5, // 11
+            // Derecha (X positivo)
+            0.5,
+            -0.5,
+            0.5, // 12
+            0.5,
+            -0.5,
+            -0.5, // 13
+            0.5,
+            0.5,
+            -0.5, // 14
+            0.5,
+            0.5,
+            0.5, // 15
+            // Abajo (Y negativo)
+            -0.5,
+            -0.5,
+            -0.5, // 16
+            0.5,
+            -0.5,
+            -0.5, // 17
+            0.5,
+            -0.5,
+            0.5, // 18
+            -0.5,
+            -0.5,
+            0.5, // 19
+            // Arriba (Y positivo)
+            -0.5,
+            0.5,
+            0.5, // 20
+            0.5,
+            0.5,
+            0.5, // 21
+            0.5,
+            0.5,
+            -0.5, // 22
+            -0.5,
+            0.5,
+            -0.5, // 23
+          ];
+
+          var colores = [
+            r,
+            g,
+            b,
+            1,
+            r,
+            g,
+            b,
+            1,
+            r,
+            g,
+            b,
+            1,
+            r,
+            g,
+            b,
+            1, // Frente
+            r,
+            g,
+            b,
+            1,
+            r,
+            g,
+            b,
+            1,
+            r,
+            g,
+            b,
+            1,
+            r,
+            g,
+            b,
+            1, // Atrás
+            r,
+            g,
+            b,
+            1,
+            r,
+            g,
+            b,
+            1,
+            r,
+            g,
+            b,
+            1,
+            r,
+            g,
+            b,
+            1, // Izquierda
+            r,
+            g,
+            b,
+            1,
+            r,
+            g,
+            b,
+            1,
+            r,
+            g,
+            b,
+            1,
+            r,
+            g,
+            b,
+            1, // Derecha
+            r,
+            g,
+            b,
+            1,
+            r,
+            g,
+            b,
+            1,
+            r,
+            g,
+            b,
+            1,
+            r,
+            g,
+            b,
+            1, // Abajo
+            r,
+            g,
+            b,
+            1,
+            r,
+            g,
+            b,
+            1,
+            r,
+            g,
+            b,
+            1,
+            r,
+            g,
+            b,
+            1, // Arriba
+          ];
+
+          var textureCoords = [
+            // Frente
+            0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0,
+            // Atrás
+            1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0,
+            // Izquierda
+            0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0,
+            // Derecha
+            0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0,
+            // Abajo
+            0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0,
+            // Arriba (Esta es la cara que se verá para el tablero)
+            0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0,
+          ];
+
+          // NUEVO: Normales para cada vértice del cubo (orientadas hacia afuera)
+          var normales = [
+            // Frente (+Z)
+            0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0,
+            // Atrás (-Z)
+            0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0,
+            // Izquierda (-X)
+            -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0,
+            // Derecha (+X)
+            1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+            // Abajo (-Y)
+            0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0,
+            // Arriba (+Y)
+            0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0,
+          ];
+
+          var indices = [
+            0,
+            1,
+            2,
+            0,
+            2,
+            3, // Frente
+            4,
+            5,
+            6,
+            4,
+            6,
+            7, // Atrás
+            8,
+            9,
+            10,
+            8,
+            10,
+            11, // Izquierda
+            12,
+            13,
+            14,
+            12,
+            14,
+            15, // Derecha
+            16,
+            17,
+            18,
+            16,
+            18,
+            19, // Abajo
+            20,
+            21,
+            22,
+            20,
+            22,
+            23, // Arriba
+          ];
+
+          this.cuboVAO = gl.createVertexArray();
+          gl.bindVertexArray(this.cuboVAO);
+
+          var codigoVertices = gl.createBuffer();
+          gl.bindBuffer(gl.ARRAY_BUFFER, codigoVertices);
+          gl.bufferData(
+            gl.ARRAY_BUFFER,
+            new Float32Array(vertices),
+            gl.STATIC_DRAW
+          );
+          gl.enableVertexAttribArray(0);
+          gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+
+          var codigoColores = gl.createBuffer();
+          gl.bindBuffer(gl.ARRAY_BUFFER, codigoColores);
+          gl.bufferData(
+            gl.ARRAY_BUFFER,
+            new Float32Array(colores),
+            gl.STATIC_DRAW
+          );
+          gl.enableVertexAttribArray(1);
+          gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 0, 0);
+
+          var codigoTexCoords = gl.createBuffer();
+          gl.bindBuffer(gl.ARRAY_BUFFER, codigoTexCoords);
+          gl.bufferData(
+            gl.ARRAY_BUFFER,
+            new Float32Array(textureCoords),
+            gl.STATIC_DRAW
+          );
+          gl.enableVertexAttribArray(2);
+          gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 0, 0);
+
+          // NUEVO: Buffer para las normales
+          var codigoNormales = gl.createBuffer();
+          gl.bindBuffer(gl.ARRAY_BUFFER, codigoNormales);
+          gl.bufferData(
+            gl.ARRAY_BUFFER,
+            new Float32Array(normales),
+            gl.STATIC_DRAW
+          );
+          gl.enableVertexAttribArray(3); // layout(location = 3)
+          gl.vertexAttribPointer(3, 3, gl.FLOAT, false, 0, 0);
+
+          var codigoDeIndices = gl.createBuffer();
+          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, codigoDeIndices);
+          gl.bufferData(
+            gl.ELEMENT_ARRAY_BUFFER,
+            new Uint16Array(indices),
+            gl.STATIC_DRAW
+          );
+
+          gl.bindVertexArray(null);
+          gl.bindBuffer(gl.ARRAY_BUFFER, null);
+          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
+        }
+
+        dibuja(gl) {
+          gl.bindVertexArray(this.cuboVAO);
+          gl.drawElements(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0);
+          gl.bindVertexArray(null);
+        }
+      }
+
+      /***************************************************************************/
+      /* Funciones para el tablero y movimiento espiral                          */
+      /***************************************************************************/
+
+      function generateSpiralPath(n) {
+        const path = [];
+        let top = 0,
+          bottom = n - 1,
+          left = 0,
+          right = n - 1;
+        let x_center = Math.floor(n / 2);
+        let y_center = Math.floor(n / 2);
+        centerCellIndex = -1;
+
+        while (top <= bottom && left <= right) {
+          // Right
+          for (let i = left; i <= right; i++) {
+            path.push({ x: i, y: top });
+            if (i === x_center && top === y_center && centerCellIndex === -1) {
+              centerCellIndex = path.length - 1;
+            }
+          }
+          top++;
+
+          // Down
+          for (let i = top; i <= bottom; i++) {
+            path.push({ x: right, y: i });
+            if (
+              i === x_center &&
+              right === y_center &&
+              centerCellIndex === -1
+            ) {
+              centerCellIndex = path.length - 1;
+            }
+          }
+          right--;
+
+          // Left
+          if (top <= bottom) {
+            for (let i = right; i >= left; i--) {
+              path.push({ x: i, y: bottom });
+              if (
+                i === x_center &&
+                bottom === y_center &&
+                centerCellIndex === -1
+              ) {
+                centerCellIndex = path.length - 1;
+              }
+            }
+            bottom--;
+          }
+
+          // Up
+          if (left <= right) {
+            for (let i = bottom; i >= top; i--) {
+              path.push({ x: left, y: i });
+              if (
+                i === x_center &&
+                left === y_center &&
+                centerCellIndex === -1
+              ) {
+                centerCellIndex = path.length - 1;
+              }
+            }
+            left++;
+          }
+        }
+        return path;
+      }
+
+      function mapBoardToWebGL(x, y) {
+        const boardWidth = BOARD_SIZE * CELL_SIZE;
+        const startX = -(boardWidth / 2) + CELL_SIZE / 2;
+        const startZ = -(boardWidth / 2) + CELL_SIZE / 2;
+
+        return {
+          x: startX + x * CELL_SIZE,
+          y: 0.0,
+          z: startZ + y * CELL_SIZE,
+        };
+      }
+
+      function inicializarTablero() {
+        tablero = [];
+        for (let y = 0; y < BOARD_SIZE; y++) {
+          for (let x = 0; x < BOARD_SIZE; x++) {
+            // Se pasa 1,1,1 como color base ya que la textura será el principal
+            const cell = new Cubo(gl, 1, 1, 1);
+            const webglPos = mapBoardToWebGL(x, y);
+            // Las celdas del tablero están en la base (Y baja).
+            tablero.push({
+              cubo: cell,
+              x: webglPos.x,
+              y: webglPos.y - CELL_SIZE / 2,
+              z: webglPos.z,
+            });
+          }
+        }
+      }
+
+      function setupPlayers(numPlayers) {
+        players = [];
+        playersInfoContainer.innerHTML = "";
+
+        for (let i = 0; i < numPlayers; i++) {
+          const playerColor = playerColors[i % playerColors.length];
+          // Se pasa 1,1,1 como color base ya que la textura será el principal
+          const playerCube = new Cubo(gl, 1, 1, 1);
+
+          const playerDiv = document.createElement("div");
+          playerDiv.className = "player-info";
+          playerDiv.style.backgroundColor = `rgba(${playerColor[0] * 255}, ${
+            playerColor[1] * 255
+          }, ${playerColor[2] * 255}, 0.8)`;
+
+          const playerName = document.createElement("span");
+          playerName.textContent = `Jugador ${i + 1}:`;
+          playerDiv.appendChild(playerName);
+
+          const playerPositionSpan = document.createElement("span");
+          playerPositionSpan.textContent = "Inicio";
+          playerDiv.appendChild(playerPositionSpan);
+
+          playersInfoContainer.appendChild(playerDiv);
+
+          players.push({
+            id: i + 1,
+            name: `Jugador ${i + 1}`,
+            cubo: playerCube,
+            positionIndex: 0,
+            color: playerColor,
+            texture: playerTextures[i % playerTextures.length],
+            posSpan: playerPositionSpan,
+          });
+        }
+        updatePlayerPositionsUI();
+      }
+
+      function updatePlayerPositionsUI() {
+        players.forEach((player, index) => {
+          const currentCellNumber = player.positionIndex + 1;
+          player.posSpan.textContent = `Casilla: ${currentCellNumber}`;
+        });
+      }
+
+      function rollDiceAndMove() {
+        if (gameOver || rollDiceButton.disabled) return;
+
+        rollDiceButton.disabled = true;
+
+        const diceRoll = Math.floor(Math.random() * 6) + 1;
+        diceResultDiv.textContent = `Dado: ${diceRoll}`;
+
+        let currentPlayer = players[currentPlayerIndex];
+        let newIndex = currentPlayer.positionIndex + diceRoll;
+
+        if (newIndex >= spiralPath.length - 1) {
+          newIndex = spiralPath.length - 1;
+        }
+
+        currentPlayer.positionIndex = newIndex;
+        updatePlayerPositionsUI();
+
+        if (
+          currentPlayer.positionIndex === centerCellIndex ||
+          currentPlayer.positionIndex >= spiralPath.length - 1
+        ) {
+          winnerMessageDiv.textContent = `¡El Jugador ${currentPlayer.id}  dijo JUMANJI y ganó!`;
+          gameOver = true;
+          rollDiceButton.disabled = true;
+        }
+
+        if (!gameOver) {
+          currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
+          statusDiv.textContent = `Turno del Jugador ${currentPlayerIndex + 1}`;
+          rollDiceButton.disabled = false;
+        }
+
+        dibuja();
+      }
+
+      /***************************************************************************/
+      /* Eventos del Ratón                                                       */
+      /***************************************************************************/
+
+      function mouseDown(event) {
+        var posx = event.clientX;
+        var posy = event.clientY;
+
+        posx = posx - canvas.offsetLeft;
+        posy = posy - canvas.offsetTop;
+
+        antX = posx;
+        antY = posy;
+
+        boton_izq_presionado = true;
+
+        return false;
+      }
+
+      function mouseUp(e) {
+        boton_izq_presionado = false;
+      }
+
+      function mouseMove(event) {
+        if (!boton_izq_presionado) return false;
+
+        var posx = event.clientX;
+        var posy = event.clientY;
+
+        posx = posx - canvas.offsetLeft;
+        posy = posy - canvas.offsetTop;
+
+        var dx = posx - antX;
+        var dy = posy - antY;
+
+        rotX = rotX + dx * 0.36;
+        rotY = rotY + dy * 0.36;
+
+        antX = posx;
+        antY = posy;
+        dibuja();
+      }
+
+      /***************************************************************************/
+      /* Funciones de Proyección                                                 */
+      /***************************************************************************/
+
+      function setProjectionMatrix() {
+        const aspectRatio = canvas.width / canvas.height;
+        const boardSpan = BOARD_SIZE * CELL_SIZE;
+
+        if (currentProjectionType === "perspective") {
+          perspective(MatrizProyeccion, 45, aspectRatio, 0.1, boardSpan * 4);
+        } else {
+          // 'orthographic'
+          let orthoSize = boardSpan / 2 + CELL_SIZE;
+          ortho(
+            MatrizProyeccion,
+            -orthoSize * aspectRatio,
+            orthoSize * aspectRatio,
+            -orthoSize,
+            orthoSize,
+            0.1,
+            boardSpan * 4
+          );
+        }
+        gl.uniformMatrix4fv(uMatrizProyeccion, false, MatrizProyeccion);
+      }
+
+      function setPerspectiveView() {
+        currentProjectionType = "perspective";
+        setProjectionMatrix();
+        dibuja();
+      }
+
+      function setOrthographicView() {
+        currentProjectionType = "orthographic";
+        setProjectionMatrix();
+        // Resetear la rotación para una mejor vista ortográfica
+        rotX = 30; // Vista ligeramente inclinada
+        rotY = 45; // Vista en ángulo
+        dibuja();
+      }
+
+      /***************************************************************************/
+      /* Funciones para la Carga de Texturas                                     */
+      /***************************************************************************/
+
+      function cargarTextura(gl, url) {
+        const texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,
+          gl.RGBA,
+          1,
+          1,
+          0,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          new Uint8Array([176, 196, 222, 255])
+        );
+
+        const image = new Image();
+        image.onload = function () {
+          gl.bindTexture(gl.TEXTURE_2D, texture);
+          gl.texImage2D(
+            gl.TEXTURE_2D,
+            0,
+            gl.RGBA,
+            gl.RGBA,
+            gl.UNSIGNED_BYTE,
+            image
+          );
+
+          if (isPowerOf2(image.width) && isPowerOf2(image.height)) {
+            gl.generateMipmap(gl.TEXTURE_2D);
+            gl.texParameteri(
+              gl.TEXTURE_2D,
+              gl.TEXTURE_MIN_FILTER,
+              gl.LINEAR_MIPMAP_LINEAR
+            );
+          } else {
+            gl.texParameteri(
+              gl.TEXTURE_2D,
+              gl.TEXTURE_WRAP_S,
+              gl.CLAMP_TO_EDGE
+            );
+            gl.texParameteri(
+              gl.TEXTURE_2D,
+              gl.TEXTURE_WRAP_T,
+              gl.CLAMP_TO_EDGE
+            );
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+          }
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+          dibuja();
+        };
+        image.onerror = function () {
+          console.error("Error al cargar la textura:", url);
+        };
+        image.src = url;
+
+        return texture;
+      }
+
+      function isPowerOf2(value) {
+        return (value & (value - 1)) === 0;
+      }
+
+      /***************************************************************************/
+      /* Se renderizan todos los objetos                                         */
+      /***************************************************************************/
+
+      function dibuja() {
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        let currentViewMatrix = new Array(16);
+        identidad(currentViewMatrix);
+        const cameraDistance = BOARD_SIZE * CELL_SIZE * 1.5;
+        traslacion(currentViewMatrix, 0, 0, -cameraDistance);
+        rotacionY(currentViewMatrix, rotX);
+        rotacionX(currentViewMatrix, rotY);
+        gl.uniformMatrix4fv(uMatrizVista, false, currentViewMatrix);
+
+        // Calcular la posición de la luz en el centro del tablero
+        // Se asume que el centro del tablero está en (0, 0, 0) en coordenadas de mundo
+        // y la luz se ubicará por encima del centro.
+        const lightX = 0;
+        const lightY = (CELL_SIZE * BOARD_SIZE) / 2; // Suficientemente alto para iluminar
+        const lightZ = 0;
+        gl.uniform3f(uLightPosition, lightX, lightY, lightZ);
+        gl.uniform1f(uLightBrightness, parseFloat(lightBrightnessSlider.value));
+
+        // Dibujar el tablero
+        gl.uniform1i(uUseTexture, true);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, tableroTexture);
+        gl.uniform1i(uSampler, 0);
+
+        for (let i = 0; i < tablero.length; i++) {
+          const cell = tablero[i];
+          let currentModelMatrix = new Array(16);
+          identidad(currentModelMatrix);
+          traslacion(currentModelMatrix, cell.x, cell.y, cell.z);
+          escalacion(currentModelMatrix, CELL_SIZE * 0.9, 0.1, CELL_SIZE * 0.9);
+          gl.uniformMatrix4fv(uMatrizModelo, false, currentModelMatrix);
+          cell.cubo.dibuja(gl);
+        }
+
+        // Dibujar todos los objetos de los jugadores
+        const offsetIncrement =
+          (CELL_SIZE * 0.3) / (players.length > 1 ? players.length : 2);
+        for (let i = 0; i < players.length; i++) {
+          const player = players[i];
+          const currentSpiralIndex = Math.max(
+            0,
+            Math.min(player.positionIndex, spiralPath.length - 1)
+          );
+          const playerPos = mapBoardToWebGL(
+            spiralPath[currentSpiralIndex].x,
+            spiralPath[currentSpiralIndex].y
+          );
+
+          identidad(MatrizModelo);
+          const xOffset = (i - (players.length - 1) / 2) * offsetIncrement;
+          traslacion(
+            MatrizModelo,
+            playerPos.x + xOffset,
+            playerPos.y + CELL_SIZE * 0.25,
+            playerPos.z
+          );
+          escalacion(
+            MatrizModelo,
+            CELL_SIZE * 0.25,
+            CELL_SIZE * 0.25,
+            CELL_SIZE * 0.25
+          );
+          gl.uniformMatrix4fv(uMatrizModelo, false, MatrizModelo);
+
+          if (player.texture) {
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, player.texture);
+            gl.uniform1i(uSampler, 0);
+            gl.uniform1i(uUseTexture, true);
+          } else {
+            gl.uniform1i(uUseTexture, false);
+            gl.bindTexture(gl.TEXTURE_2D, null);
+          }
+
+          player.cubo.dibuja(gl);
+        }
+        gl.bindTexture(gl.TEXTURE_2D, null);
+      }
+
+      function reiniciaJuego() {
+        gameOver = false;
+        currentPlayerIndex = 0;
+        rotX = 0;
+        rotY = 0;
+        diceResultDiv.textContent = "";
+        winnerMessageDiv.textContent = "";
+        statusDiv.textContent = `Turno del Jugador 1`;
+        rollDiceButton.disabled = false;
+
+        setupPlayers(players.length);
+        dibuja();
+      }
+
+      function startGame() {
+        const boardSize = parseInt(boardSizeInput.value);
+        const numPlayers = parseInt(numPlayersInput.value);
+
+        errorMessageDiv.textContent = "";
+
+        if (
+          isNaN(boardSize) ||
+          boardSize < 3 ||
+          boardSize > 15 ||
+          boardSize % 2 === 0
+        ) {
+          errorMessageDiv.textContent =
+            "Tamaño del tablero debe ser impar y entre 3 y 15.";
+          return;
+        }
+        if (isNaN(numPlayers) || numPlayers < 2 || numPlayers > 6) {
+          errorMessageDiv.textContent =
+            "Número de jugadores debe ser entre 2 y 6.";
+          return;
+        }
+
+        BOARD_SIZE = boardSize;
+        spiralPath = generateSpiralPath(BOARD_SIZE);
+        inicializarTablero();
+
+        playerTextures = [];
+        for (let i = 0; i < numPlayers; i++) {
+          const texturePath = playerTexturePaths[i % playerTexturePaths.length];
+          playerTextures.push(cargarTextura(gl, texturePath));
+        }
+
+        setupPlayers(numPlayers);
+        reiniciaJuego();
+
+        configScreen.classList.add("hidden");
+        uiContainer.classList.remove("hidden");
+
+        dibuja();
+      }
+
+      /***************************************************************************/
+      /* Se inicia el programa cuando se carga la página web                     */
+      /***************************************************************************/
+
+      function iniciar() {
+        canvas = document.getElementById("webglcanvas");
+        gl = canvas.getContext("webgl2");
+        if (!gl) {
+          alert("Tu navegador no soporta WebGL2.");
+          return;
+        }
+
+        statusDiv = document.getElementById("status");
+        playersInfoContainer = document.getElementById(
+          "players-info-container"
+        );
+        rollDiceButton = document.getElementById("rollDice");
+        resetButton = document.getElementById("reset");
+        diceResultDiv = document.getElementById("diceResult");
+        winnerMessageDiv = document.getElementById("winnerMessage");
+        perspectiveViewButton = document.getElementById("perspectiveView");
+        orthographicViewButton = document.getElementById("orthographicView");
+        lightBrightnessSlider = document.getElementById("lightBrightness"); // Obtener referencia al slider
+
+        configScreen = document.getElementById("configScreen");
+        boardSizeInput = document.getElementById("boardSizeInput");
+        numPlayersInput = document.getElementById("numPlayersInput");
+        startGameButton = document.getElementById("startGameButton");
+        errorMessageDiv = document.getElementById("errorMessage");
+        uiContainer = document.getElementById("ui");
+
+        canvas.addEventListener("mousedown", mouseDown, false);
+        canvas.addEventListener("mouseup", mouseUp, false);
+        canvas.addEventListener("mousemove", mouseMove, false);
+        rollDiceButton.addEventListener("click", rollDiceAndMove);
+        resetButton.addEventListener("click", reiniciaJuego);
+        perspectiveViewButton.addEventListener("click", setPerspectiveView);
+        orthographicViewButton.addEventListener("click", setOrthographicView);
+        startGameButton.addEventListener("click", startGame);
+        lightBrightnessSlider.addEventListener("input", dibuja); // NUEVO: Actualizar al mover el slider
+
+        gl.clearColor(0.69, 0.76, 0.87, 1.0);
+        gl.enable(gl.DEPTH_TEST);
+        gl.enable(gl.CULL_FACE);
+
+        compilaEnlazaLosShaders();
+        uMatrizProyeccion = gl.getUniformLocation(
+          programaID,
+          "uMatrizProyeccion"
+        );
+        uMatrizVista = gl.getUniformLocation(programaID, "uMatrizVista");
+        uMatrizModelo = gl.getUniformLocation(programaID, "uMatrizModelo");
+        uSampler = gl.getUniformLocation(programaID, "uSampler");
+        uUseTexture = gl.getUniformLocation(programaID, "uUseTexture");
+        uLightPosition = gl.getUniformLocation(programaID, "uLightPosition"); // NUEVO
+        uLightBrightness = gl.getUniformLocation(
+          programaID,
+          "uLightBrightness"
+        ); // NUEVO
+
+        tableroTexture = cargarTextura(gl, "azul.jpg");
+
+        setProjectionMatrix();
+      }
+
+      window.onload = iniciar;
+    </script>
+  </body>
+</html>
